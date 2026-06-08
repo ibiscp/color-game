@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Jogo das Cores</title>
+<style>
+  :root{
+    --red:#e74c3c; --yellow:#f4c20d; --green:#27ae60; --blue:#2f80ed;
+    --bg1:#1e2a4a; --bg2:#0f1626;
+    --panel:rgba(255,255,255,.06);
+    --panel-border:rgba(255,255,255,.12);
+    --text:#eef2ff; --muted:#9fb0d0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    min-height:100vh;
+    background:radial-gradient(1200px 800px at 50% -10%, #2a3a66 0%, var(--bg1) 45%, var(--bg2) 100%);
+    display:flex; flex-direction:column; align-items:center;
+    padding:24px 14px 60px;
+    -webkit-user-select:none; user-select:none;
+  }
+  h1{
+    margin:6px 0 2px; font-size:30px; letter-spacing:.5px;
+    background:linear-gradient(90deg,var(--red),var(--yellow),var(--green),var(--blue));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    font-weight:800;
+  }
+  .subtitle{margin:0 0 20px; color:var(--muted); font-size:14px; text-align:center; max-width:520px;}
+  .layout{
+    display:flex; gap:26px; align-items:flex-start; justify-content:center; flex-wrap:wrap;
+  }
+  .panel{
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:20px; padding:18px;
+    backdrop-filter:blur(6px);
+    box-shadow:0 12px 40px rgba(0,0,0,.35);
+  }
+  .panel h2{margin:0 0 12px; font-size:15px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); text-align:center;}
+
+  /* ---------- Objective + controls card ---------- */
+  .target-panel{display:flex; flex-direction:column; align-items:stretch; width:240px; gap:14px;}
+  .target-panel h2{margin:0;}
+  .target-panel .mini-grid{margin:0 auto;}
+  .options{display:flex; flex-direction:column; gap:9px;}
+  .options button{width:100%;}
+  .options .btn-primary{margin-top:0;}
+  .target-panel .moves{text-align:center;}
+  .mini-grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:7px;
+    width:160px; height:160px; padding:8px;
+    background:rgba(0,0,0,.25); border-radius:14px;
+    transition:transform .25s ease, box-shadow .25s ease;
+  }
+  .mini-grid.pulse{transform:scale(1.06); box-shadow:0 0 0 3px rgba(255,255,255,.25);}
+  .mini{border-radius:9px; box-shadow:inset 0 -3px 6px rgba(0,0,0,.25);}
+  .mini.empty{background:repeating-linear-gradient(45deg,rgba(255,255,255,.06),rgba(255,255,255,.06) 5px,transparent 5px,transparent 10px); box-shadow:none; border:1px dashed rgba(255,255,255,.18);}
+  .mini.red{background:var(--red);} .mini.yellow{background:var(--yellow);}
+  .mini.green{background:var(--green);} .mini.blue{background:var(--blue);}
+
+  /* ---------- Buttons ---------- */
+  button{
+    font-family:inherit; cursor:pointer; border:none; color:#fff;
+    font-weight:700; font-size:14px; padding:10px 16px; border-radius:11px;
+    transition:transform .12s ease, filter .12s ease, box-shadow .12s ease;
+    box-shadow:0 5px 14px rgba(0,0,0,.3);
+  }
+  button:active{transform:translateY(1px) scale(.98);}
+  .btn-primary{
+    margin-top:16px; width:100%;
+    background:linear-gradient(135deg,#7b5cff,#3f8cff);
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-ghost{
+    background:rgba(255,255,255,.10); border:1px solid var(--panel-border);
+  }
+  .btn-ghost:hover{background:rgba(255,255,255,.18);}
+
+  /* ---------- Board ---------- */
+  .board-panel{display:flex; flex-direction:column; align-items:center;}
+  .stage{transform-origin:top center;}
+  #board{position:relative;}
+  .slot{
+    position:absolute; border-radius:16px; background:rgba(255,255,255,.04);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+    transition:box-shadow .2s ease, background .2s ease;
+  }
+  .slot.empty{
+    background:repeating-linear-gradient(45deg,rgba(255,255,255,.05),rgba(255,255,255,.05) 7px,transparent 7px,transparent 14px);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.20);
+  }
+  .tile{
+    position:absolute; border-radius:16px;
+    transition:transform .16s cubic-bezier(.2,.8,.25,1), box-shadow .16s ease, filter .12s ease;
+    box-shadow:0 6px 0 rgba(0,0,0,.22), 0 10px 18px rgba(0,0,0,.28), inset 0 3px 6px rgba(255,255,255,.35);
+    touch-action:none; will-change:transform;
+  }
+  .tile.red{background:linear-gradient(150deg,#ff7d72,var(--red));}
+  .tile.yellow{background:linear-gradient(150deg,#ffe371,var(--yellow));}
+  .tile.green{background:linear-gradient(150deg,#62e08c,var(--green));}
+  .tile.blue{background:linear-gradient(150deg,#73a9ff,var(--blue));}
+  .tile.movable{cursor:grab;}
+  .tile.movable:hover{filter:brightness(1.07); box-shadow:0 6px 0 rgba(0,0,0,.22), 0 12px 22px rgba(0,0,0,.34), inset 0 3px 6px rgba(255,255,255,.4), 0 0 0 3px rgba(255,255,255,.25);}
+  .tile.dragging{cursor:grabbing; transition:none; z-index:10; filter:brightness(1.1);}
+  .tile .label{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:34px; font-weight:800; color:rgba(255,255,255,.95);
+    text-shadow:0 2px 5px rgba(0,0,0,.4); pointer-events:none;
+    opacity:0; transition:opacity .2s ease;
+  }
+  #board.show-letters .tile .label{opacity:1;}
+
+  .btn-ghost.solving{background:linear-gradient(135deg,#ff7d72,var(--red)); border-color:transparent;}
+  .moves{color:var(--muted); font-size:15px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .moves b{color:var(--text); font-size:17px; display:inline-block; min-width:2.6ch; text-align:left; font-variant-numeric:tabular-nums;}
+
+  /* ---------- Win ---------- */
+  .win{
+    margin-top:22px; font-size:22px; font-weight:800; text-align:center;
+    color:#fff; padding:12px 22px; border-radius:14px;
+    background:linear-gradient(135deg,var(--green),#1f8f54);
+    box-shadow:0 10px 30px rgba(39,174,96,.45);
+    animation:pop .4s ease;
+  }
+  .hidden{display:none;}
+  @keyframes pop{0%{transform:scale(.6);opacity:0;}100%{transform:scale(1);opacity:1;}}
+
+  #confetti{position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:50;}
+  .confetti{position:absolute; top:-12px; width:10px; height:14px; border-radius:2px; opacity:.9; animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(105vh) rotate(540deg);}}
+
+  @media (max-width:560px){
+    body{padding:10px 10px 14px;}
+    h1{font-size:20px; margin-top:0;}
+    .subtitle{font-size:11px; margin-bottom:8px;}
+    .layout{gap:12px; flex-direction:column; align-items:center;}
+    .panel{padding:10px; border-radius:14px;}
+
+    /* Compact: small objective grid on the left, options stacked on the right */
+    .target-panel{
+      flex-direction:row; flex-wrap:wrap; width:auto; max-width:100%; gap:8px 12px;
+      justify-content:center; align-items:center;
+    }
+    .target-panel h2{width:100%; margin:0; font-size:11px;}
+    .target-panel .mini-grid{width:84px; height:84px; gap:4px; padding:5px; border-radius:10px; margin:0;}
+    .mini{border-radius:5px;}
+    .options{flex:1 1 170px; min-width:160px; gap:6px;}
+
+    button{font-size:13px; padding:8px 12px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,.28);}
+    .moves{font-size:13px; width:100%; text-align:center;}
+    .win{font-size:18px; padding:9px 16px;}
+  }
+</style>
+</head>
+<body>
+  <h1>Jogo das Cores</h1>
+  <p class="subtitle">Deslize as peças até o tabuleiro ficar igual ao objetivo.</p>
+
+  <div class="layout">
+    <div class="panel target-panel">
+      <h2>Objetivo</h2>
+      <div id="targetGrid" class="mini-grid"></div>
+      <div class="options">
+        <button id="drawBtn" class="btn-primary">🎲 Sortear card</button>
+        <button id="shuffleBtn" class="btn-ghost">🔀 Embaralhar</button>
+        <button id="solveBtn" class="btn-ghost">🤖 Resolver</button>
+      </div>
+      <span class="moves">Movimentos: <b id="moveCount">0</b></span>
+    </div>
+
+    <div class="panel board-panel">
+      <div class="stage" id="stage">
+        <div id="board"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="winMsg" class="win hidden">🎉 Você conseguiu!</div>
+  <div id="confetti"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ----- Responsive geometry (fits both width and height) -----
+  let CELL, GAP, PAD, STRIDE, SIZE;
+  const MINCELL = 48, MAXCELL = 96;
+  function isMobile(){ return window.innerWidth <= 560; }
+  function setMode(){ GAP = isMobile() ? 8 : 10; PAD = isMobile() ? 10 : 12; }
+  function setCell(cell){
+    cell = Math.max(MINCELL, Math.min(MAXCELL, Math.floor(cell)));
+    CELL = cell; STRIDE = CELL + GAP; SIZE = PAD*2 + CELL*3 + GAP*2;
+  }
+  function widthCell(){
+    const chrome = isMobile() ? 40 : 80;            // body + panel padding allowance
+    const maxBoard = MAXCELL*3 + GAP*2 + PAD*2;
+    const avail = Math.min(window.innerWidth - chrome, maxBoard);
+    return Math.floor((avail - PAD*2 - GAP*2) / 3);
+  }
+  setMode(); setCell(widthCell());
+
+  const COLORS = ["red","yellow","green","blue"];
+
+  // ----- DOM -----
+  const boardEl  = document.getElementById("board");
+  const targetEl = document.getElementById("targetGrid");
+  const moveEl   = document.getElementById("moveCount");
+  const winEl    = document.getElementById("winMsg");
+  const confEl   = document.getElementById("confetti");
+  const stageEl  = document.getElementById("stage");
+
+  // ----- State -----
+  let board = [];        // length 9: each entry is {id,color} or null (empty)
+  let target = [];       // length 9: each entry is a color string or null
+  let blank = 8;         // index of the empty cell
+  let moves = 0;
+  let solved = false;
+  const tileEls = new Map(); // id -> element
+  const slotEls = [];        // 9 background slot elements
+
+  // ----- Helpers -----
+  function cellXY(i){ const r=(i/3)|0, c=i%3; return {x: PAD + c*STRIDE, y: PAD + r*STRIDE}; }
+  function adjacent(a,b){
+    const ra=(a/3)|0, ca=a%3, rb=(b/3)|0, cb=b%3;
+    return Math.abs(ra-rb) + Math.abs(ca-cb) === 1;
+  }
+  function makeTiles(){
+    const t=[];
+    COLORS.forEach(c => { t.push({id:c+"-1",color:c}); t.push({id:c+"-2",color:c}); });
+    return t; // 8 tiles
+  }
+  function boardColors(){ return board.map(t => t ? t.color : null); }
+  function indexOfTile(id){ return board.findIndex(t => t && t.id===id); }
+
+  // ----- Build DOM tiles & slots (once) -----
+  function buildDOM(){
+    for(let i=0;i<9;i++){
+      const s=document.createElement("div");
+      s.className="slot";
+      s.dataset.slot=i;
+      boardEl.appendChild(s);
+      slotEls.push(s);
+    }
+    const LETTERS=["A","B","C","D","E","F","G","H"];
+    makeTiles().forEach((t,i)=>{
+      const el=document.createElement("div");
+      el.className="tile "+t.color;
+      el.dataset.id=t.id;
+      const lab=document.createElement("span");
+      lab.className="label"; lab.textContent=LETTERS[i];
+      el.appendChild(lab);
+      el.addEventListener("pointerdown", onDown);
+      boardEl.appendChild(el);
+      tileEls.set(t.id, el);
+    });
+  }
+
+  // ----- Apply current sizes to the board, slots and tiles -----
+  function applyLayout(){
+    setMode();
+    let cell = widthCell();
+    // On mobile the board sits below the controls card: cap it to the height left
+    // in the viewport so the whole page fits without scrolling.
+    if(isMobile()){
+      const lp=document.querySelector(".target-panel");
+      if(lp){
+        const LAYOUT_GAP=12, PANEL_PAD_TOP=10, BOTTOM=10+14+10; // gap + board-panel padTop ; (panel padBottom + body padBottom + safety)
+        const topOfBoard = lp.getBoundingClientRect().bottom + LAYOUT_GAP + PANEL_PAD_TOP;
+        const availH = window.innerHeight - topOfBoard - BOTTOM;
+        const cellH = Math.floor((availH - PAD*2 - GAP*2) / 3);
+        cell = Math.min(cell, cellH);
+      }
+    }
+    setCell(cell);
+    boardEl.style.width = SIZE + "px";
+    boardEl.style.height = SIZE + "px";
+    slotEls.forEach((s,i)=>{
+      s.style.width = CELL + "px"; s.style.height = CELL + "px";
+      const {x,y}=cellXY(i); s.style.transform=`translate(${x}px,${y}px)`;
+    });
+    tileEls.forEach(el=>{
+      el.style.width = CELL + "px"; el.style.height = CELL + "px";
+      const lab=el.firstChild; if(lab) lab.style.fontSize = Math.round(CELL*0.42) + "px";
+    });
+    renderBoard();
+  }
+
+  // ----- Core move (no counting / rendering) -----
+  function doMove(idx){
+    if(idx===blank || !adjacent(idx, blank)) return false;
+    board[blank] = board[idx];
+    board[idx] = null;
+    blank = idx;
+    return true;
+  }
+
+  // ----- Scramble with random legal moves (always solvable) -----
+  function scramble(){
+    let prev=-1;
+    for(let k=0;k<500;k++){
+      const rb=(blank/3)|0, cb=blank%3;
+      const adj=[];
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{
+        const r=rb+dr, c=cb+dc;
+        if(r>=0&&r<3&&c>=0&&c<3) adj.push(r*3+c);
+      });
+      let pool=adj.filter(i=>i!==prev);
+      if(!pool.length) pool=adj;
+      const pick=pool[(Math.random()*pool.length)|0];
+      prev=blank;
+      doMove(pick);
+    }
+  }
+
+  // ----- Draw a random target card -----
+  function shuffleArr(a){
+    for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; }
+  }
+  function sameAsBoard(arr){
+    const bc=boardColors();
+    return arr.every((c,i)=>c===bc[i]);
+  }
+  function drawTarget(){
+    stopAuto();
+    hideLetters();
+    let arr;
+    do {
+      arr=[]; COLORS.forEach(c=>{arr.push(c);arr.push(c);}); arr.push(null);
+      shuffleArr(arr);
+    } while(sameAsBoard(arr)); // avoid an already-solved card
+    target=arr;
+    solved=false; moves=0; updateMoves(); hideWin();
+    renderTarget(); renderBoard();
+    targetEl.classList.add("pulse");
+    setTimeout(()=>targetEl.classList.remove("pulse"), 260);
+  }
+
+  // ----- Rendering -----
+  function renderTarget(){
+    targetEl.innerHTML="";
+    target.forEach(c=>{
+      const cell=document.createElement("div");
+      cell.className="mini "+(c ? c : "empty");
+      targetEl.appendChild(cell);
+    });
+  }
+  function renderBoard(){
+    tileEls.forEach((el,id)=>{
+      const idx=indexOfTile(id);
+      const {x,y}=cellXY(idx);
+      el.style.transform=`translate(${x}px,${y}px)`;
+      el.classList.toggle("movable", !solved && adjacent(idx, blank));
+    });
+    slotEls.forEach((s,i)=> s.classList.toggle("empty", i===blank));
+  }
+  function updateMoves(){ moveEl.textContent=moves; }
+
+  // ----- Win detection -----
+  function checkWin(){
+    if(solved) return;
+    const bc=boardColors();
+    if(bc.every((c,i)=>c===target[i])){
+      solved=true;
+      renderBoard();
+      winEl.classList.remove("hidden");
+      celebrate();
+    }
+  }
+  function hideWin(){ winEl.classList.add("hidden"); }
+
+  function celebrate(){
+    const cols=["var(--red)","var(--yellow)","var(--green)","var(--blue)","#ffffff"];
+    for(let i=0;i<46;i++){
+      const c=document.createElement("div");
+      c.className="confetti";
+      c.style.left=(Math.random()*100)+"%";
+      c.style.background=cols[i%cols.length];
+      c.style.animationDuration=(1.6+Math.random()*1.4)+"s";
+      c.style.animationDelay=(Math.random()*0.4)+"s";
+      confEl.appendChild(c);
+      setTimeout(()=>c.remove(), 3400);
+    }
+  }
+
+  // ----- Commit a move from the player -----
+  function playerMove(idx){
+    if(solved) return;
+    if(doMove(idx)){
+      moves++; updateMoves();
+      renderBoard();
+      checkWin();
+    }
+  }
+
+  // ----- Auto-solver: shortest path via breadth-first search -----
+  function neighborsOf(b){
+    const r=(b/3)|0, c=b%3, out=[];
+    if(r<2) out.push(b+3); if(r>0) out.push(b-3);
+    if(c<2) out.push(b+1); if(c>0) out.push(b-1);
+    return out;
+  }
+  function toStr(arr){ return arr.map(c => c ? c[0] : "_").join(""); } // r/y/g/b are unique
+  function applyStr(s, idx){
+    const b=s.indexOf("_"); const a=s.split("");
+    a[b]=a[idx]; a[idx]="_"; return a.join("");
+  }
+  function solvePath(start, goal){
+    if(start===goal) return [];
+    const prev=new Map(); prev.set(start, null);
+    const q=[start]; let head=0;
+    while(head<q.length){
+      const s=q[head++];
+      if(s===goal) break;
+      const b=s.indexOf("_");
+      for(const n of neighborsOf(b)){
+        const ns=applyStr(s,n);
+        if(!prev.has(ns)){ prev.set(ns,{from:s, idx:n}); q.push(ns); }
+      }
+    }
+    if(!prev.has(goal)) return null;
+    const path=[]; let cur=goal;
+    while(prev.get(cur)){ const p=prev.get(cur); path.push(p.idx); cur=p.from; }
+    return path.reverse();
+  }
+
+  let autoTimer=null;
+  function isAutoSolving(){ return autoTimer!==null; }
+  function stopAuto(){
+    if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+    const btn=document.getElementById("solveBtn");
+    btn.textContent="🤖 Resolver"; btn.classList.remove("solving");
+  }
+  function startAuto(){
+    if(solved) return;
+    const path=solvePath(toStr(boardColors()), toStr(target));
+    if(!path || !path.length) return;
+    const btn=document.getElementById("solveBtn");
+    btn.textContent="⏸ Parar"; btn.classList.add("solving");
+    let i=0;
+    autoTimer=setInterval(()=>{
+      if(i>=path.length || solved){ stopAuto(); return; }
+      playerMove(path[i++]);
+      if(solved || i>=path.length) stopAuto();
+    }, 500);
+  }
+  function toggleAuto(){ isAutoSolving() ? stopAuto() : startAuto(); }
+
+  // ----- Pointer dragging -----
+  let drag=null;
+  function onDown(e){
+    if(solved || isAutoSolving()) return;
+    const el=e.currentTarget;
+    const idx=indexOfTile(el.dataset.id);
+    if(!adjacent(idx, blank)) return; // only neighbours of the empty space move
+    const ri=(idx/3)|0, ci=idx%3, rb=(blank/3)|0, cb=blank%3;
+    const axis = (ri===rb) ? "x" : "y";
+    const dir  = axis==="x" ? Math.sign(cb-ci) : Math.sign(rb-ri);
+    drag={el,idx,axis,dir,base:cellXY(idx),sx:e.clientX,sy:e.clientY,off:0,moved:0};
+    el.classList.add("dragging");
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  }
+  function onMove(e){
+    if(!drag) return;
+    const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
+    drag.moved=Math.max(drag.moved, Math.abs(dx)+Math.abs(dy));
+    const raw = drag.axis==="x" ? dx*drag.dir : dy*drag.dir;
+    drag.off = Math.max(0, Math.min(STRIDE, raw));
+    const x=drag.base.x + (drag.axis==="x" ? drag.dir*drag.off : 0);
+    const y=drag.base.y + (drag.axis==="y" ? drag.dir*drag.off : 0);
+    drag.el.style.transform=`translate(${x}px,${y}px)`;
+  }
+  function onUp(e){
+    if(!drag) return;
+    const d=drag; drag=null;
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    d.el.classList.remove("dragging");
+    try{ d.el.releasePointerCapture(e.pointerId); }catch(_){}
+    const isTap = d.moved < 6;
+    if(isTap || d.off > STRIDE*0.45){
+      playerMove(d.idx);   // commit the slide
+    } else {
+      renderBoard();       // not far enough -> snap back
+    }
+  }
+
+  // ----- Keyboard (arrows slide a tile into the empty space) -----
+  function onKey(e){
+    if(solved || isAutoSolving()) return;
+    const rb=(blank/3)|0, cb=blank%3; let idx=-1;
+    if(e.key==="ArrowUp"    && rb<2) idx=blank+3;
+    else if(e.key==="ArrowDown"  && rb>0) idx=blank-3;
+    else if(e.key==="ArrowLeft"  && cb<2) idx=blank+1;
+    else if(e.key==="ArrowRight" && cb>0) idx=blank-1;
+    if(idx>=0){ playerMove(idx); e.preventDefault(); }
+  }
+
+  // ----- Buttons -----
+  document.getElementById("drawBtn").addEventListener("click", drawTarget);
+  document.getElementById("shuffleBtn").addEventListener("click", ()=>{
+    stopAuto();
+    hideLetters();
+    scramble();
+    if(target.length && sameAsBoard(target)) scramble();
+    solved=false; moves=0; updateMoves(); hideWin(); renderBoard();
+  });
+  document.getElementById("solveBtn").addEventListener("click", ()=>{ hideLetters(); toggleAuto(); });
+
+  // Easter egg: click the objective card 5x to reveal the letters; they stay
+  // until the next card / Embaralhar / Resolver.
+  let cardClicks=0;
+  function hideLetters(){ boardEl.classList.remove("show-letters"); cardClicks=0; }
+  targetEl.addEventListener("click", ()=>{
+    if(boardEl.classList.contains("show-letters")) return;
+    if(++cardClicks>=5){ boardEl.classList.add("show-letters"); cardClicks=0; }
+  });
+
+  window.addEventListener("keydown", onKey);
+
+  // ----- Re-fit on resize / orientation change -----
+  let resizeTimer=null;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer=setTimeout(applyLayout, 80);
+  });
+
+  // ----- Init -----
+  function init(){
+    buildDOM();
+    board = makeTiles(); board.push(null); blank=8; // solved layout
+    scramble();
+    drawTarget();
+    if(sameAsBoard(target)) scramble();
+    applyLayout();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
