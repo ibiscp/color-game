@@ -7,6 +7,7 @@
 <style>
   :root{
     --red:#e74c3c; --yellow:#f4c20d; --green:#27ae60; --blue:#2f80ed;
+    --orange:#f2711c; --purple:#9b59b6;
     --bg1:#1e2a4a; --bg2:#0f1626;
     --panel:rgba(255,255,255,.06);
     --panel-border:rgba(255,255,255,.12);
@@ -49,17 +50,26 @@
   .options button{width:100%;}
   .options .btn-primary{margin-top:0;}
   .target-panel .moves{text-align:center;}
+
+  /* size selector */
+  .sizes{display:flex; gap:6px; justify-content:center;}
+  .size-btn{flex:1; padding:7px 0; font-size:13px; font-weight:700; color:var(--muted);
+    background:rgba(255,255,255,.08); border:1px solid var(--panel-border); box-shadow:none;}
+  .size-btn:hover{background:rgba(255,255,255,.16);}
+  .size-btn.active{background:linear-gradient(135deg,#7b5cff,#3f8cff); color:#fff; border-color:transparent;}
+
   .mini-grid{
-    display:grid; grid-template-columns:repeat(3,1fr); gap:7px;
+    display:grid; gap:7px;
     width:160px; height:160px; padding:8px;
     background:rgba(0,0,0,.25); border-radius:14px;
     transition:transform .25s ease, box-shadow .25s ease;
   }
   .mini-grid.pulse{transform:scale(1.06); box-shadow:0 0 0 3px rgba(255,255,255,.25);}
-  .mini{border-radius:9px; box-shadow:inset 0 -3px 6px rgba(0,0,0,.25);}
+  .mini{border-radius:6px; box-shadow:inset 0 -3px 6px rgba(0,0,0,.25);}
   .mini.empty{background:repeating-linear-gradient(45deg,rgba(255,255,255,.06),rgba(255,255,255,.06) 5px,transparent 5px,transparent 10px); box-shadow:none; border:1px dashed rgba(255,255,255,.18);}
   .mini.red{background:var(--red);} .mini.yellow{background:var(--yellow);}
   .mini.green{background:var(--green);} .mini.blue{background:var(--blue);}
+  .mini.orange{background:var(--orange);} .mini.purple{background:var(--purple);}
 
   /* ---------- Buttons ---------- */
   button{
@@ -84,7 +94,7 @@
   .stage{transform-origin:top center;}
   #board{position:relative;}
   .slot{
-    position:absolute; border-radius:16px; background:rgba(255,255,255,.04);
+    position:absolute; border-radius:14px; background:rgba(255,255,255,.04);
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
     transition:box-shadow .2s ease, background .2s ease;
   }
@@ -93,7 +103,7 @@
     box-shadow:inset 0 0 0 2px rgba(255,255,255,.20);
   }
   .tile{
-    position:absolute; border-radius:16px;
+    position:absolute; border-radius:14px;
     transition:transform .16s cubic-bezier(.2,.8,.25,1), box-shadow .16s ease, filter .12s ease;
     box-shadow:0 6px 0 rgba(0,0,0,.22), 0 10px 18px rgba(0,0,0,.28), inset 0 3px 6px rgba(255,255,255,.35);
     touch-action:none; will-change:transform;
@@ -102,6 +112,8 @@
   .tile.yellow{background:linear-gradient(150deg,#ffe371,var(--yellow));}
   .tile.green{background:linear-gradient(150deg,#62e08c,var(--green));}
   .tile.blue{background:linear-gradient(150deg,#73a9ff,var(--blue));}
+  .tile.orange{background:linear-gradient(150deg,#ffae6b,var(--orange));}
+  .tile.purple{background:linear-gradient(150deg,#c98fe0,var(--purple));}
   .tile.movable{cursor:grab;}
   .tile.movable:hover{filter:brightness(1.07); box-shadow:0 6px 0 rgba(0,0,0,.22), 0 12px 22px rgba(0,0,0,.34), inset 0 3px 6px rgba(255,255,255,.4), 0 0 0 3px rgba(255,255,255,.25);}
   .tile.dragging{cursor:grabbing; transition:none; z-index:10; filter:brightness(1.1);}
@@ -145,8 +157,9 @@
       justify-content:center; align-items:center;
     }
     .target-panel h2{width:100%; margin:0; font-size:11px;}
-    .target-panel .mini-grid{width:84px; height:84px; gap:4px; padding:5px; border-radius:10px; margin:0;}
-    .mini{border-radius:5px;}
+    .sizes{width:100%;}
+    .size-btn{padding:6px 0; font-size:12px;}
+    .target-panel .mini-grid{width:88px; height:88px; gap:3px; padding:5px; border-radius:10px; margin:0;}
     .options{flex:1 1 170px; min-width:160px; gap:6px;}
 
     button{font-size:13px; padding:8px 12px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,.28);}
@@ -162,6 +175,11 @@
   <div class="layout">
     <div class="panel target-panel">
       <h2>Objetivo</h2>
+      <div class="sizes" id="sizes">
+        <button class="size-btn" data-n="3">Fácil</button>
+        <button class="size-btn" data-n="4">Médio</button>
+        <button class="size-btn" data-n="5">Difícil</button>
+      </div>
       <div id="targetGrid" class="mini-grid"></div>
       <div class="options">
         <button id="drawBtn" class="btn-primary">🎲 Sortear card</button>
@@ -185,152 +203,129 @@
 (function(){
   "use strict";
 
-  // ----- Responsive geometry (fits both width and height) -----
+  // ===== Configuration =====
+  const PALETTE=["red","yellow","green","blue","orange","purple"];
+  let N=3;                       // board dimension (3,4,5)
+  function gameColors(){ return PALETTE.slice(0, N+1); }   // N+1 colours, each used N-1 times
+
+  // ===== Responsive geometry =====
   let CELL, GAP, PAD, STRIDE, SIZE;
-  const MINCELL = 48, MAXCELL = 96;
+  const MINCELL=22, MAXCELL=96, BOARD_MAX_DESKTOP=360;
   function isMobile(){ return window.innerWidth <= 560; }
-  function setMode(){ GAP = isMobile() ? 8 : 10; PAD = isMobile() ? 10 : 12; }
+  function setMode(){
+    PAD = isMobile() ? 10 : 12;
+    GAP = (N>=5 ? (isMobile()?5:7) : N>=4 ? (isMobile()?6:8) : (isMobile()?8:10));
+  }
+  function cellFromBoard(px){ return Math.floor((px - PAD*2 - GAP*(N-1)) / N); }
   function setCell(cell){
     cell = Math.max(MINCELL, Math.min(MAXCELL, Math.floor(cell)));
-    CELL = cell; STRIDE = CELL + GAP; SIZE = PAD*2 + CELL*3 + GAP*2;
+    CELL = cell; STRIDE = CELL + GAP; SIZE = PAD*2 + CELL*N + GAP*(N-1);
   }
-  function widthCell(){
-    const chrome = isMobile() ? 40 : 80;            // body + panel padding allowance
-    const maxBoard = MAXCELL*3 + GAP*2 + PAD*2;
-    const avail = Math.min(window.innerWidth - chrome, maxBoard);
-    return Math.floor((avail - PAD*2 - GAP*2) / 3);
+  function widthAvail(){
+    return isMobile() ? (window.innerWidth - 44) : Math.min(window.innerWidth - 80, BOARD_MAX_DESKTOP);
   }
-  setMode(); setCell(widthCell());
 
-  const COLORS = ["red","yellow","green","blue"];
-
-  // ----- DOM -----
+  // ===== DOM =====
   const boardEl  = document.getElementById("board");
   const targetEl = document.getElementById("targetGrid");
   const moveEl   = document.getElementById("moveCount");
   const winEl    = document.getElementById("winMsg");
   const confEl   = document.getElementById("confetti");
-  const stageEl  = document.getElementById("stage");
+  const sizesEl  = document.getElementById("sizes");
 
-  // ----- State -----
-  let board = [];        // length 9: each entry is {id,color} or null (empty)
-  let target = [];       // length 9: each entry is a color string or null
-  let blank = 8;         // index of the empty cell
+  // ===== State =====
+  let board = [];        // length N*N: {id,color} or null
+  let target = [];       // length N*N: color string or null
+  let blank = 0;
   let moves = 0;
   let solved = false;
-  const tileEls = new Map(); // id -> element
-  const slotEls = [];        // 9 background slot elements
+  const tileEls = new Map();
+  let slotEls = [];
 
-  // ----- Helpers -----
-  function cellXY(i){ const r=(i/3)|0, c=i%3; return {x: PAD + c*STRIDE, y: PAD + r*STRIDE}; }
-  function adjacent(a,b){
-    const ra=(a/3)|0, ca=a%3, rb=(b/3)|0, cb=b%3;
-    return Math.abs(ra-rb) + Math.abs(ca-cb) === 1;
-  }
+  // ===== Grid helpers =====
+  function cellXY(i){ const r=(i/N)|0, c=i%N; return {x: PAD + c*STRIDE, y: PAD + r*STRIDE}; }
+  function adjacent(a,b){ const ra=(a/N)|0, ca=a%N, rb=(b/N)|0, cb=b%N; return Math.abs(ra-rb)+Math.abs(ca-cb)===1; }
+  function gridNbrs(n,i){ const r=(i/n)|0,c=i%n,o=[]; if(r>0)o.push(i-n); if(r<n-1)o.push(i+n); if(c>0)o.push(i-1); if(c<n-1)o.push(i+1); return o; }
   function makeTiles(){
     const t=[];
-    COLORS.forEach(c => { t.push({id:c+"-1",color:c}); t.push({id:c+"-2",color:c}); });
-    return t; // 8 tiles
+    gameColors().forEach(c=>{ for(let k=0;k<N-1;k++) t.push({id:c+"-"+k, color:c}); });
+    return t; // (N+1)*(N-1) = N*N-1 tiles
   }
   function boardColors(){ return board.map(t => t ? t.color : null); }
   function indexOfTile(id){ return board.findIndex(t => t && t.id===id); }
 
-  // ----- Build DOM tiles & slots (once) -----
+  // ===== Build / rebuild board DOM =====
   function buildDOM(){
-    for(let i=0;i<9;i++){
-      const s=document.createElement("div");
-      s.className="slot";
-      s.dataset.slot=i;
-      boardEl.appendChild(s);
-      slotEls.push(s);
-    }
-    const LETTERS=["A","B","C","D","E","F","G","H"];
+    boardEl.innerHTML=""; tileEls.clear(); slotEls=[];
+    const cells=N*N;
+    for(let i=0;i<cells;i++){ const s=document.createElement("div"); s.className="slot"; boardEl.appendChild(s); slotEls.push(s); }
     makeTiles().forEach((t,i)=>{
       const el=document.createElement("div");
-      el.className="tile "+t.color;
-      el.dataset.id=t.id;
+      el.className="tile "+t.color; el.dataset.id=t.id;
       const lab=document.createElement("span");
-      lab.className="label"; lab.textContent=LETTERS[i];
+      lab.className="label"; lab.textContent=String.fromCharCode(65+i); // A,B,C...
       el.appendChild(lab);
       el.addEventListener("pointerdown", onDown);
       boardEl.appendChild(el);
       tileEls.set(t.id, el);
     });
+    targetEl.style.gridTemplateColumns = `repeat(${N},1fr)`;
   }
 
-  // ----- Apply current sizes to the board, slots and tiles -----
   function applyLayout(){
     setMode();
-    let cell = widthCell();
-    // On mobile the board sits below the controls card: cap it to the height left
-    // in the viewport so the whole page fits without scrolling.
+    let cell = cellFromBoard(widthAvail());
     if(isMobile()){
       const lp=document.querySelector(".target-panel");
       if(lp){
-        const LAYOUT_GAP=12, PANEL_PAD_TOP=10, BOTTOM=10+14+10; // gap + board-panel padTop ; (panel padBottom + body padBottom + safety)
+        const LAYOUT_GAP=12, PANEL_PAD_TOP=10, BOTTOM=10+14+10;
         const topOfBoard = lp.getBoundingClientRect().bottom + LAYOUT_GAP + PANEL_PAD_TOP;
         const availH = window.innerHeight - topOfBoard - BOTTOM;
-        const cellH = Math.floor((availH - PAD*2 - GAP*2) / 3);
-        cell = Math.min(cell, cellH);
+        cell = Math.min(cell, cellFromBoard(availH));
       }
     }
     setCell(cell);
     boardEl.style.width = SIZE + "px";
     boardEl.style.height = SIZE + "px";
+    const rad = Math.max(6, Math.round(CELL*0.16));
     slotEls.forEach((s,i)=>{
-      s.style.width = CELL + "px"; s.style.height = CELL + "px";
+      s.style.width=CELL+"px"; s.style.height=CELL+"px"; s.style.borderRadius=rad+"px";
       const {x,y}=cellXY(i); s.style.transform=`translate(${x}px,${y}px)`;
     });
     tileEls.forEach(el=>{
-      el.style.width = CELL + "px"; el.style.height = CELL + "px";
+      el.style.width=CELL+"px"; el.style.height=CELL+"px"; el.style.borderRadius=rad+"px";
       const lab=el.firstChild; if(lab) lab.style.fontSize = Math.round(CELL*0.42) + "px";
     });
     renderBoard();
   }
 
-  // ----- Core move (no counting / rendering) -----
+  // ===== Core move =====
   function doMove(idx){
     if(idx===blank || !adjacent(idx, blank)) return false;
-    board[blank] = board[idx];
-    board[idx] = null;
-    blank = idx;
-    return true;
+    board[blank]=board[idx]; board[idx]=null; blank=idx; return true;
   }
 
-  // ----- Scramble with random legal moves (always solvable) -----
+  // ===== Scramble (random legal moves) =====
   function scramble(){
     let prev=-1;
-    for(let k=0;k<500;k++){
-      const rb=(blank/3)|0, cb=blank%3;
-      const adj=[];
-      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{
-        const r=rb+dr, c=cb+dc;
-        if(r>=0&&r<3&&c>=0&&c<3) adj.push(r*3+c);
-      });
-      let pool=adj.filter(i=>i!==prev);
-      if(!pool.length) pool=adj;
+    const steps=N*N*60;
+    for(let k=0;k<steps;k++){
+      const pool0=gridNbrs(N,blank);
+      let pool=pool0.filter(i=>i!==prev);
+      if(!pool.length) pool=pool0;
       const pick=pool[(Math.random()*pool.length)|0];
-      prev=blank;
-      doMove(pick);
+      prev=blank; doMove(pick);
     }
   }
 
-  // ----- Draw a random target card -----
-  function shuffleArr(a){
-    for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; }
-  }
-  function sameAsBoard(arr){
-    const bc=boardColors();
-    return arr.every((c,i)=>c===bc[i]);
-  }
+  // ===== Target card =====
+  function shuffleArr(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; } }
+  function sameAsBoard(arr){ const bc=boardColors(); return arr.every((c,i)=>c===bc[i]); }
   function drawTarget(){
-    stopAuto();
-    hideLetters();
+    stopAuto(); hideLetters();
     let arr;
-    do {
-      arr=[]; COLORS.forEach(c=>{arr.push(c);arr.push(c);}); arr.push(null);
-      shuffleArr(arr);
-    } while(sameAsBoard(arr)); // avoid an already-solved card
+    do { arr=[]; gameColors().forEach(c=>{ for(let k=0;k<N-1;k++) arr.push(c); }); arr.push(null); shuffleArr(arr); }
+    while(sameAsBoard(arr));
     target=arr;
     solved=false; moves=0; updateMoves(); hideWin();
     renderTarget(); renderBoard();
@@ -338,14 +333,10 @@
     setTimeout(()=>targetEl.classList.remove("pulse"), 260);
   }
 
-  // ----- Rendering -----
+  // ===== Rendering =====
   function renderTarget(){
     targetEl.innerHTML="";
-    target.forEach(c=>{
-      const cell=document.createElement("div");
-      cell.className="mini "+(c ? c : "empty");
-      targetEl.appendChild(cell);
-    });
+    target.forEach(c=>{ const cell=document.createElement("div"); cell.className="mini "+(c?c:"empty"); targetEl.appendChild(cell); });
   }
   function renderBoard(){
     tileEls.forEach((el,id)=>{
@@ -358,106 +349,154 @@
   }
   function updateMoves(){ moveEl.textContent=moves; }
 
-  // ----- Win detection -----
+  // ===== Win =====
   function checkWin(){
     if(solved) return;
     const bc=boardColors();
-    if(bc.every((c,i)=>c===target[i])){
-      solved=true;
-      renderBoard();
-      winEl.classList.remove("hidden");
-      celebrate();
-    }
+    if(bc.every((c,i)=>c===target[i])){ solved=true; renderBoard(); winEl.classList.remove("hidden"); celebrate(); }
   }
   function hideWin(){ winEl.classList.add("hidden"); }
-
   function celebrate(){
-    const cols=["var(--red)","var(--yellow)","var(--green)","var(--blue)","#ffffff"];
-    for(let i=0;i<46;i++){
-      const c=document.createElement("div");
-      c.className="confetti";
-      c.style.left=(Math.random()*100)+"%";
-      c.style.background=cols[i%cols.length];
-      c.style.animationDuration=(1.6+Math.random()*1.4)+"s";
-      c.style.animationDelay=(Math.random()*0.4)+"s";
-      confEl.appendChild(c);
-      setTimeout(()=>c.remove(), 3400);
+    const cols=["var(--red)","var(--yellow)","var(--green)","var(--blue)","var(--orange)","var(--purple)","#ffffff"];
+    for(let i=0;i<48;i++){
+      const c=document.createElement("div"); c.className="confetti";
+      c.style.left=(Math.random()*100)+"%"; c.style.background=cols[i%cols.length];
+      c.style.animationDuration=(1.6+Math.random()*1.4)+"s"; c.style.animationDelay=(Math.random()*0.4)+"s";
+      confEl.appendChild(c); setTimeout(()=>c.remove(), 3400);
     }
   }
 
-  // ----- Commit a move from the player -----
   function playerMove(idx){
     if(solved) return;
-    if(doMove(idx)){
-      moves++; updateMoves();
-      renderBoard();
-      checkWin();
-    }
+    if(doMove(idx)){ moves++; updateMoves(); renderBoard(); checkWin(); }
   }
 
-  // ----- Auto-solver: shortest path via breadth-first search -----
-  function neighborsOf(b){
-    const r=(b/3)|0, c=b%3, out=[];
-    if(r<2) out.push(b+3); if(r>0) out.push(b-3);
-    if(c<2) out.push(b+1); if(c>0) out.push(b-1);
-    return out;
-  }
-  function toStr(arr){ return arr.map(c => c ? c[0] : "_").join(""); } // r/y/g/b are unique
-  function applyStr(s, idx){
-    const b=s.indexOf("_"); const a=s.split("");
-    a[b]=a[idx]; a[idx]="_"; return a.join("");
-  }
-  function solvePath(start, goal){
+  // ===== Solver: BFS for 3x3, constructive (two-phase) for larger =====
+  // -- BFS (optimal) for N=3 --
+  function toStr(arr){ return arr.map(c => c ? c[0] : "_").join(""); }
+  function bfsSolve(startArr, goalArr){
+    const start=toStr(startArr), goal=toStr(goalArr);
     if(start===goal) return [];
-    const prev=new Map(); prev.set(start, null);
-    const q=[start]; let head=0;
-    while(head<q.length){
-      const s=q[head++];
-      if(s===goal) break;
-      const b=s.indexOf("_");
-      for(const n of neighborsOf(b)){
-        const ns=applyStr(s,n);
-        if(!prev.has(ns)){ prev.set(ns,{from:s, idx:n}); q.push(ns); }
-      }
+    const prev=new Map(); prev.set(start,null); const q=[start]; let h=0;
+    function applyStr(s, idx){ const b=s.indexOf("_"); const a=s.split(""); a[b]=a[idx]; a[idx]="_"; return a.join(""); }
+    while(h<q.length){
+      const s=q[h++]; if(s===goal) break; const b=s.indexOf("_");
+      for(const n of gridNbrs(N,b)){ const ns=applyStr(s,n); if(!prev.has(ns)){ prev.set(ns,{from:s,idx:n}); q.push(ns); } }
     }
     if(!prev.has(goal)) return null;
-    const path=[]; let cur=goal;
-    while(prev.get(cur)){ const p=prev.get(cur); path.push(p.idx); cur=p.from; }
+    const path=[]; let cur=goal; while(prev.get(cur)){ const p=prev.get(cur); path.push(p.idx); cur=p.from; }
     return path.reverse();
   }
 
+  // -- Constructive solver (works for any N) --
+  function attemptSolve(n, state, tileForCell){
+    let bl=state.indexOf(-1);
+    const out=[]; const frozen=new Set();
+    const id=(r,c)=>r*n+c;
+    function slide(cell){ state[bl]=state[cell]; state[cell]=-1; bl=cell; out.push(cell); }
+    function solveCells(list){
+      list=list.filter(o=>o.tile!==undefined);
+      if(!list.length) return true;
+      const goals=list.map(o=>o.cell);
+      const startPos=list.map(o=>state.indexOf(o.tile));
+      const reached=(pos)=>pos.every((p,i)=>p===goals[i]);
+      if(reached(startPos)){ goals.forEach(g=>frozen.add(g)); return true; }
+      const prev=new Map(); prev.set(startPos.concat([bl]).join(','), null);
+      const q=[[startPos, bl]]; let h=0, endKey=null;
+      while(h<q.length && endKey===null){
+        const [pos, b]=q[h++]; const pk=pos.concat([b]).join(',');
+        for(const nb of gridNbrs(n,b)){
+          if(frozen.has(nb)) continue;
+          const npos=pos.slice(); for(let i=0;i<npos.length;i++) if(npos[i]===nb) npos[i]=b;
+          const nk=npos.concat([nb]).join(',');
+          if(prev.has(nk)) continue;
+          prev.set(nk,{pk, move:nb});
+          if(reached(npos)){ endKey=nk; break; }
+          q.push([npos, nb]);
+        }
+      }
+      if(endKey===null) return false;
+      const seq=[]; let k=endKey; while(prev.get(k)){ const e=prev.get(k); seq.push(e.move); k=e.pk; } seq.reverse();
+      for(const cell of seq) slide(cell);
+      goals.forEach(g=>frozen.add(g));
+      return true;
+    }
+    for(let r=0;r<n-2;r++){
+      for(let c=0;c<n-2;c++){ if(!solveCells([{tile:tileForCell[id(r,c)],cell:id(r,c)}])) return null; }
+      if(!solveCells([{tile:tileForCell[id(r,n-2)],cell:id(r,n-2)},{tile:tileForCell[id(r,n-1)],cell:id(r,n-1)}])) return null;
+    }
+    for(let c=0;c<n-2;c++){
+      if(!solveCells([{tile:tileForCell[id(n-2,c)],cell:id(n-2,c)},{tile:tileForCell[id(n-1,c)],cell:id(n-1,c)}])) return null;
+    }
+    const fin=[id(n-2,n-2),id(n-2,n-1),id(n-1,n-2),id(n-1,n-1)].map(c=>({tile:tileForCell[c],cell:c}));
+    if(!solveCells(fin)) return null;
+    return out;
+  }
+  function toCanonical(n, colors){
+    const M=n*n; const state=new Array(M); const tileColor=[]; let tid=0;
+    for(let i=0;i<M;i++){ if(colors[i]===null) state[i]=-1; else { state[i]=tid; tileColor[tid]=colors[i]; tid++; } }
+    // canonical goal colours: sorted, blank last
+    const cg=[]; gameColors().forEach(c=>{ for(let k=0;k<n-1;k++) cg.push(c); }); cg.push(null);
+    const cellsByColor=new Map(), tilesByColor=new Map();
+    for(let i=0;i<M;i++){ const c=cg[i]; if(c===null) continue; (cellsByColor.get(c)||cellsByColor.set(c,[]).get(c)).push(i); }
+    for(let t=0;t<tid;t++){ const c=tileColor[t]; (tilesByColor.get(c)||tilesByColor.set(c,[]).get(c)).push(t); }
+    function mapping(swap){
+      const m=new Array(M).fill(undefined);
+      for(const [c,cells] of cellsByColor){ const tiles=tilesByColor.get(c); for(let k=0;k<cells.length;k++) m[cells[k]]=tiles[k]; }
+      if(swap) for(const [c,cells] of cellsByColor){ if(cells.length>=2){ const a=cells[0],b=cells[1]; const t=m[a]; m[a]=m[b]; m[b]=t; break; } }
+      return m;
+    }
+    for(const swap of [false,true]){ const r=attemptSolve(n, state.slice(), mapping(swap)); if(r) return r; }
+    return null;
+  }
+  function constructiveSolve(startColors, targetColors){
+    if(startColors.every((c,i)=>c===targetColors[i])) return [];
+    const a=toCanonical(N, startColors.slice());
+    const b=toCanonical(N, targetColors.slice());
+    if(!a||!b) return null;
+    const startBlankB=targetColors.indexOf(null);
+    const fullB=[startBlankB].concat(b);
+    const revB=fullB.slice().reverse().slice(1);
+    return a.concat(revB);
+  }
+  function computeSolution(){
+    const start=boardColors(), goal=target;
+    return N===3 ? bfsSolve(start, goal) : constructiveSolve(start, goal);
+  }
+
+  // ===== Auto-solve =====
   let autoTimer=null;
   function isAutoSolving(){ return autoTimer!==null; }
   function stopAuto(){
     if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
     const btn=document.getElementById("solveBtn");
-    btn.textContent="🤖 Resolver"; btn.classList.remove("solving");
+    if(btn){ btn.textContent="🤖 Resolver"; btn.classList.remove("solving"); }
   }
   function startAuto(){
     if(solved) return;
-    const path=solvePath(toStr(boardColors()), toStr(target));
+    const path=computeSolution();
     if(!path || !path.length) return;
     const btn=document.getElementById("solveBtn");
     btn.textContent="⏸ Parar"; btn.classList.add("solving");
+    const speed = N===3 ? 500 : Math.max(35, Math.round(11000/path.length));
     let i=0;
     autoTimer=setInterval(()=>{
       if(i>=path.length || solved){ stopAuto(); return; }
       playerMove(path[i++]);
       if(solved || i>=path.length) stopAuto();
-    }, 500);
+    }, speed);
   }
   function toggleAuto(){ isAutoSolving() ? stopAuto() : startAuto(); }
 
-  // ----- Pointer dragging -----
+  // ===== Pointer dragging =====
   let drag=null;
   function onDown(e){
     if(solved || isAutoSolving()) return;
-    const el=e.currentTarget;
-    const idx=indexOfTile(el.dataset.id);
-    if(!adjacent(idx, blank)) return; // only neighbours of the empty space move
-    const ri=(idx/3)|0, ci=idx%3, rb=(blank/3)|0, cb=blank%3;
-    const axis = (ri===rb) ? "x" : "y";
-    const dir  = axis==="x" ? Math.sign(cb-ci) : Math.sign(rb-ri);
+    const el=e.currentTarget; const idx=indexOfTile(el.dataset.id);
+    if(!adjacent(idx, blank)) return;
+    const ri=(idx/N)|0, ci=idx%N, rb=(blank/N)|0, cb=blank%N;
+    const axis=(ri===rb)?"x":"y";
+    const dir=axis==="x"?Math.sign(cb-ci):Math.sign(rb-ri);
     drag={el,idx,axis,dir,base:cellXY(idx),sx:e.clientX,sy:e.clientY,off:0,moved:0};
     el.classList.add("dragging");
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
@@ -470,10 +509,10 @@
     if(!drag) return;
     const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
     drag.moved=Math.max(drag.moved, Math.abs(dx)+Math.abs(dy));
-    const raw = drag.axis==="x" ? dx*drag.dir : dy*drag.dir;
-    drag.off = Math.max(0, Math.min(STRIDE, raw));
-    const x=drag.base.x + (drag.axis==="x" ? drag.dir*drag.off : 0);
-    const y=drag.base.y + (drag.axis==="y" ? drag.dir*drag.off : 0);
+    const raw=drag.axis==="x"?dx*drag.dir:dy*drag.dir;
+    drag.off=Math.max(0, Math.min(STRIDE, raw));
+    const x=drag.base.x + (drag.axis==="x"?drag.dir*drag.off:0);
+    const y=drag.base.y + (drag.axis==="y"?drag.dir*drag.off:0);
     drag.el.style.transform=`translate(${x}px,${y}px)`;
   }
   function onUp(e){
@@ -484,38 +523,40 @@
     window.removeEventListener("pointercancel", onUp);
     d.el.classList.remove("dragging");
     try{ d.el.releasePointerCapture(e.pointerId); }catch(_){}
-    const isTap = d.moved < 6;
-    if(isTap || d.off > STRIDE*0.45){
-      playerMove(d.idx);   // commit the slide
-    } else {
-      renderBoard();       // not far enough -> snap back
-    }
+    const isTap=d.moved<6;
+    if(isTap || d.off > STRIDE*0.45) playerMove(d.idx);
+    else renderBoard();
   }
 
-  // ----- Keyboard (arrows slide a tile into the empty space) -----
+  // ===== Keyboard =====
   function onKey(e){
     if(solved || isAutoSolving()) return;
-    const rb=(blank/3)|0, cb=blank%3; let idx=-1;
-    if(e.key==="ArrowUp"    && rb<2) idx=blank+3;
-    else if(e.key==="ArrowDown"  && rb>0) idx=blank-3;
-    else if(e.key==="ArrowLeft"  && cb<2) idx=blank+1;
-    else if(e.key==="ArrowRight" && cb>0) idx=blank-1;
+    const rb=(blank/N)|0, cb=blank%N; let idx=-1;
+    if(e.key==="ArrowUp"    && rb<N-1) idx=blank+N;
+    else if(e.key==="ArrowDown"  && rb>0)   idx=blank-N;
+    else if(e.key==="ArrowLeft"  && cb<N-1) idx=blank+1;
+    else if(e.key==="ArrowRight" && cb>0)   idx=blank-1;
     if(idx>=0){ playerMove(idx); e.preventDefault(); }
   }
 
-  // ----- Buttons -----
+  // ===== Buttons =====
   document.getElementById("drawBtn").addEventListener("click", drawTarget);
   document.getElementById("shuffleBtn").addEventListener("click", ()=>{
-    stopAuto();
-    hideLetters();
-    scramble();
+    stopAuto(); hideLetters(); scramble();
     if(target.length && sameAsBoard(target)) scramble();
     solved=false; moves=0; updateMoves(); hideWin(); renderBoard();
   });
   document.getElementById("solveBtn").addEventListener("click", ()=>{ hideLetters(); toggleAuto(); });
 
-  // Easter egg: click the objective card 5x to reveal the letters; they stay
-  // until the next card / Embaralhar / Resolver.
+  // size selector
+  function updateSizeButtons(){ sizesEl.querySelectorAll(".size-btn").forEach(b=>b.classList.toggle("active", +b.dataset.n===N)); }
+  sizesEl.addEventListener("click", (e)=>{
+    const b=e.target.closest(".size-btn"); if(!b) return;
+    const n=+b.dataset.n; if(n===N) return;
+    newGame(n);
+  });
+
+  // Easter egg: click the objective card 5x to reveal letters
   let cardClicks=0;
   function hideLetters(){ boardEl.classList.remove("show-letters"); cardClicks=0; }
   targetEl.addEventListener("click", ()=>{
@@ -524,24 +565,22 @@
   });
 
   window.addEventListener("keydown", onKey);
-
-  // ----- Re-fit on resize / orientation change -----
   let resizeTimer=null;
-  window.addEventListener("resize", ()=>{
-    clearTimeout(resizeTimer);
-    resizeTimer=setTimeout(applyLayout, 80);
-  });
+  window.addEventListener("resize", ()=>{ clearTimeout(resizeTimer); resizeTimer=setTimeout(applyLayout, 80); });
 
-  // ----- Init -----
-  function init(){
+  // ===== New game / init =====
+  function newGame(n){
+    N=n;
+    stopAuto();
     buildDOM();
-    board = makeTiles(); board.push(null); blank=8; // solved layout
+    board=makeTiles(); board.push(null); blank=N*N-1;
     scramble();
     drawTarget();
     if(sameAsBoard(target)) scramble();
+    updateSizeButtons();
     applyLayout();
   }
-  init();
+  newGame(3);
 })();
 </script>
 </body>
