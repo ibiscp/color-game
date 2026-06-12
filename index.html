@@ -474,9 +474,20 @@
     for(const swap of [false,true]){ const r=attemptDirect(N, state.slice(), mapping(swap)); if(r) return cleanupMoves(startColors, r); }
     return null;
   }
-  function computeSolution(){
+  async function computeSolution(){
     const start=boardColors(), goal=target;
-    return N===3 ? bfsSolve(start, goal) : constructiveSolve(start, goal);
+    const boardIds=board.map(t=>t?t.id:null);
+    try{
+      const resp=await fetch("http://localhost:8000/solve",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({board:boardIds,target:goal,n:N}),
+        signal:AbortSignal.timeout(35000)
+      });
+      if(resp.ok){ const data=await resp.json(); return data.moves; }
+    }catch(_){}
+    // Fallback to JS solver if server unavailable or error
+    return N===3 ? bfsSolve(start,goal) : constructiveSolve(start,goal);
   }
 
   // ===== Auto-solve =====
@@ -487,12 +498,13 @@
     const btn=document.getElementById("solveBtn");
     if(btn){ btn.textContent="🤖 Resolver"; btn.classList.remove("solving"); }
   }
-  function startAuto(){
+  async function startAuto(){
     if(solved) return;
-    const path=computeSolution();
-    if(!path || !path.length) return;
     const btn=document.getElementById("solveBtn");
-    btn.textContent="⏸ Parar"; btn.classList.add("solving");
+    btn.textContent="⏳ Calculando..."; btn.classList.add("solving");
+    const path=await computeSolution();
+    if(!path || !path.length){ stopAuto(); return; }
+    btn.textContent="⏸ Parar";
     const speed = N===3 ? 450 : Math.max(28, Math.min(220, Math.round(6000/path.length)));
     let i=0;
     autoTimer=setInterval(()=>{
